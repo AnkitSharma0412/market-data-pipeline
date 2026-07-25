@@ -1,0 +1,1 @@
+select distinct ticker from {{ ref('stg_daily_prices') }}

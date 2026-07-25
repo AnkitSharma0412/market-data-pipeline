@@ -1,1 +1,25 @@
-Unable to initialize device PRN
+venv/
+.env
+__pycache__/
+*.pyc
+logs/
+.dbt/
+DLLs/
+Doc/
+Git/
+Lib/
+include/
+libs/
+tcl/
+python.exe
+python3.dll
+python314.dll
+pythonw.exe
+vcruntime140.dll
+vcruntime140_1.dll
+LICENSE.txt
+NEWS.txt
+-p/
+dbt_market/target/
+dbt_market/logs/
+dbt_market/dbt_packages/

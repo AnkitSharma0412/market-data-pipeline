@@ -1,0 +1,25 @@
+version: 2
+
+models:
+  - name: dim_ticker
+    columns:
+      - name: ticker
+        tests:
+          - unique
+          - not_null
+
+  - name: fact_daily_prices
+    columns:
+      - name: ticker
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_ticker')
+              field: ticker
+      - name: close_price
+        tests:
+          - not_null
+
+  - name: fact_stock_metrics
+    columns:
+      - name: daily_return
