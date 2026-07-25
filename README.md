@@ -45,3 +45,6 @@ Snowflake (raw) → dbt (staging → marts) → dbt tests → dbt docs
 [Add your dbt docs lineage graph screenshot here]
 [Add a screenshot of a query against fact_stock_metrics here]
 ![alt text](image.png)
+<img width="1213" height="433" alt="image" src="https://github.com/user-attachments/assets/fcf9909e-128a-41fc-ba89-9d66d0129607" />
+
+
