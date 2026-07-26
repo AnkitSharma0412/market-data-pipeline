@@ -14,8 +14,9 @@ models:
         tests:
           - not_null
           - relationships:
-              to: ref('dim_ticker')
-              field: ticker
+              arguments:
+                to: ref('dim_ticker')
+                field: ticker
       - name: close_price
         tests:
           - not_null
@@ -23,3 +24,34 @@ models:
   - name: fact_stock_metrics
     columns:
       - name: daily_return
+
+  - name: fact_benchmark_comparison
+    description: "Daily excess return of each ticker versus the SPY benchmark (simple alpha)."
+    columns:
+      - name: ticker
+        tests:
+          - not_null
+      - name: excess_return_vs_benchmark
+        # No not_null test — inherits the same expected null pattern as
+        # daily_return: each ticker's first trading day has no prior value
+        # to compute a return (and therefore no excess return) against.
+
+  - name: fact_portfolio_risk
+    description: "Parametric (variance-covariance) 1-day VaR at 95% and 99% confidence, based on rolling 20-day portfolio return statistics."
+    columns:
+      - name: trade_date
+        tests:
+          - not_null
+
+  - name: fact_portfolio_performance
+    description: "Daily portfolio return, weighted by position size across held tickers."
+    columns:
+      - name: trade_date
+        tests:
+          - not_null
+          - unique
+      - name: portfolio_daily_return
+        # No not_null test here — the earliest date in the dataset is
+        # expected to be null. Every ticker's own first trading day has no
+        # prior value to calculate a return against (lag() returns null),
+        # and SUM() across all tickers is null when every input is null.

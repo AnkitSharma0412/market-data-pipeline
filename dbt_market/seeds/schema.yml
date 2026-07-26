@@ -1,0 +1,13 @@
+version: 2
+
+seeds:
+  - name: dim_portfolio_position
+    description: "Static portfolio weights by ticker — sums to 1.00."
+    columns:
+      - name: ticker
+        tests:
+          - unique
+          - not_null
+      - name: weight
+        tests:
+          - not_null
