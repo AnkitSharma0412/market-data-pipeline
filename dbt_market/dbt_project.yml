@@ -22,3 +22,7 @@ models:
     marts:
       +schema: marts
       +materialized: table
+      
+seeds:
+  dbt_market:
+    +schema: marts
