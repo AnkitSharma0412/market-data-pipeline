@@ -32,8 +32,9 @@ models:
         tests:
           - not_null
       - name: excess_return_vs_benchmark
-        tests:
-          - not_null
+        # No not_null test — inherits the same expected null pattern as
+        # daily_return: each ticker's first trading day has no prior value
+        # to compute a return (and therefore no excess return) against.
 
   - name: fact_portfolio_risk
     description: "Parametric (variance-covariance) 1-day VaR at 95% and 99% confidence, based on rolling 20-day portfolio return statistics."
