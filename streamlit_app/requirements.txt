@@ -2,3 +2,4 @@ streamlit
 groq
 pyyaml
 snowflake-connector-python
+duckduckgo-search
