@@ -1,0 +1,219 @@
+name: market_analytics
+description: |
+  Semantic model for daily stock price data, portfolio performance, and risk metrics, allowing natural language questions about stock prices, returns, volatility, and portfolio-level performance.
+tables:
+  - name: fact_daily_prices
+    description: Daily OHLCV (open, high, low, close, volume) price data per ticker.
+    base_table:
+      database: MARKET_DB
+      schema: MARTS
+      table: FACT_DAILY_PRICES
+    dimensions:
+      - name: ticker
+        synonyms:
+          - company
+          - stock
+          - symbol
+        description: Stock ticker symbol, e.g. AAPL, MSFT, GOOGL.
+        expr: ticker
+        data_type: varchar
+      - name: trade_date
+        synonyms:
+          - date
+          - day
+        description: The trading date for this price record.
+        expr: trade_date
+        data_type: date
+    facts:
+      - name: close_price
+        synonyms:
+          - close
+          - closing price
+          - current price
+          - price
+        description: Closing price for the trading day.
+        expr: close_price
+        data_type: float
+      - name: high_price
+        synonyms:
+          - day high
+          - high
+          - highest price
+        description: Highest price during the trading day.
+        expr: high_price
+        data_type: float
+      - name: low_price
+        synonyms:
+          - day low
+          - low
+          - lowest price
+        description: Lowest price during the trading day.
+        expr: low_price
+        data_type: float
+      - name: open_price
+        synonyms:
+          - open
+        description: Opening price for the trading day.
+        expr: open_price
+        data_type: float
+      - name: volume
+        synonyms:
+          - shares traded
+          - trading volume
+        description: Number of shares traded.
+        expr: volume
+        data_type: number
+    metrics:
+      - name: count_ticker_trade_date
+        description: Counts the total number of rows combining ticker and trade date, representing the total volume of price records including any duplicates. Use when questions ask about 'total number of price records', 'how many entries exist', or 'record count for tickers and dates'. Helps audit data volume, identify potential duplicate records when compared against the distinct count, and measure overall dataset size.
+        expr: COUNT(ticker, trade_date)
+      - name: distinct_ticker_trade_date_count
+        description: Counts the number of distinct ticker and trade date combinations using a hash, effectively measuring the total number of unique price records in the dataset. Use when questions ask about 'how many unique stock-day records exist', 'total number of price observations', or 'how many ticker-date pairs are available'. Helps assess data coverage, verify completeness of price history across tickers and dates, and understand the breadth of the dataset.
+        expr: COUNT(DISTINCT HASH(ticker, trade_date))
+  - name: fact_stock_metrics
+    description: 'Derived analytics per ticker: daily return, rolling volatility, moving averages.'
+    base_table:
+      database: MARKET_DB
+      schema: MARTS
+      table: FACT_STOCK_METRICS
+    dimensions:
+      - name: ticker
+        synonyms:
+          - company
+          - stock
+          - symbol
+        expr: ticker
+        data_type: varchar
+      - name: trade_date
+        synonyms:
+          - date
+          - day
+        expr: trade_date
+        data_type: date
+    facts:
+      - name: daily_return
+        synonyms:
+          - daily change
+          - daily gain
+          - gain
+          - performance
+          - return
+        description: The percentage change in closing price versus the previous trading day.
+        expr: daily_return
+        data_type: float
+      - name: moving_avg_200d
+        synonyms:
+          - 200 day average
+          - 200-day MA
+        description: 200-day moving average of the closing price.
+        expr: moving_avg_200d
+        data_type: float
+      - name: moving_avg_50d
+        synonyms:
+          - 50 day average
+          - 50-day MA
+        description: 50-day moving average of the closing price.
+        expr: moving_avg_50d
+        data_type: float
+      - name: rolling_20d_volatility
+        synonyms:
+          - price swings
+          - risk
+          - volatility
+        description: Standard deviation of daily returns over the trailing 20 trading days — a measure of risk/price fluctuation.
+        expr: rolling_20d_volatility
+        data_type: float
+    filters:
+      - name: large_daily_move
+        description: Flags trading days where the absolute value of a stock's daily return exceeds 0.5%. Use when questions ask about 'big moves', 'large price swings', 'significant daily changes', 'volatile days', 'notable price movements', or 'days with major gains or losses'. Helps identify days of heightened individual stock activity and supports analysis of extreme return events or unusual market behavior for a given ticker.
+        expr: ABS(daily_return) > 0.005
+  - name: fact_portfolio_performance
+    description: Daily portfolio-level return, weighted across all held positions.
+    base_table:
+      database: MARKET_DB
+      schema: MARTS
+      table: FACT_PORTFOLIO_PERFORMANCE
+    dimensions:
+      - name: trade_date
+        synonyms:
+          - date
+          - day
+        expr: trade_date
+        data_type: date
+    facts:
+      - name: portfolio_daily_return
+        synonyms:
+          - my portfolio performance
+          - portfolio gain
+          - portfolio return
+          - total gain
+        description: The portfolio's total return for the day, weighted across all held positions.
+        expr: portfolio_daily_return
+        data_type: float
+    metrics:
+      - name: count_trade_date
+        description: Counts the total number of trade date records in the portfolio performance table, including any duplicates. Use when questions ask about 'total number of portfolio performance records', 'how many daily return entries exist', or 'record count for portfolio data'. Helps audit data completeness and volume, and when compared to the distinct date count, can identify any duplicate date entries in the portfolio performance history.
+        expr: COUNT(trade_date)
+      - name: distinct_trading_days_count
+        description: Counts the number of distinct trading dates with portfolio performance data, representing the total number of unique days the portfolio has been tracked. Use when questions ask about 'how many trading days are recorded', 'number of days of portfolio history', or 'how long has the portfolio been tracked'. Helps understand the time span of portfolio performance data and assess the completeness of the performance history.
+        expr: COUNT(DISTINCT trade_date)
+  - name: fact_portfolio_risk
+    description: Portfolio-level Value at Risk (VaR) estimates.
+    base_table:
+      database: MARKET_DB
+      schema: MARTS
+      table: FACT_PORTFOLIO_RISK
+    dimensions:
+      - name: trade_date
+        synonyms:
+          - date
+          - day
+        expr: trade_date
+        data_type: date
+    facts:
+      - name: var_95_1day
+        synonyms:
+          - downside risk
+          - risk
+          - value at risk
+          - VaR
+        description: 1-day Value at Risk at 95% confidence — the estimated worst-case daily loss, 95% of the time.
+        expr: var_95_1day
+        data_type: float
+      - name: var_99_1day
+        synonyms:
+          - 99% VaR
+          - worst case risk
+        description: 1-day Value at Risk at 99% confidence.
+        expr: var_99_1day
+        data_type: float
+  - name: fact_benchmark_comparison
+    description: Each ticker's daily return compared against the SPY benchmark (simple alpha).
+    base_table:
+      database: MARKET_DB
+      schema: MARTS
+      table: FACT_BENCHMARK_COMPARISON
+    dimensions:
+      - name: ticker
+        synonyms:
+          - company
+          - stock
+          - symbol
+        expr: ticker
+        data_type: varchar
+      - name: trade_date
+        synonyms:
+          - date
+          - day
+        expr: trade_date
+        data_type: date
+    facts:
+      - name: excess_return_vs_benchmark
+        synonyms:
+          - alpha
+          - outperformance
+          - vs benchmark
+          - vs market
+        description: How much a stock outperformed (positive) or underperformed (negative) the SPY benchmark on a given day — simple alpha.
+        expr: excess_return_vs_benchmark
+        data_type: float
