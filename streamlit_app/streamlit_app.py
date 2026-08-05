@@ -6,7 +6,7 @@ from groq import Groq
 import snowflake.connector
 from duckduckgo_search import DDGS
 
-st.set_page_config(page_title="Portfolio Q&A Assistant", page_icon="📈", layout="centered")
+st.set_page_config(page_title="Portfolio Terminal", page_icon="📈", layout="centered")
 
 # ---------------------------------------------------------------------------
 # Secrets
@@ -43,6 +43,7 @@ if not check_password():
 
 client = Groq(api_key=get_secret("GROQ_API_KEY"))
 MODEL = "llama-3.3-70b-versatile"
+TICKERS = ["AAPL", "MSFT", "GOOGL", "JPM", "GS", "SPY"]
 
 ABOUT_ME_ANSWER = """I'm a portfolio analytics assistant. Here's what I can help with:
 
@@ -82,8 +83,35 @@ def build_schema_context(semantic_model):
     return "\n".join(lines)
 
 
+@st.cache_data(ttl=300, show_spinner=False)
+def fetch_ticker_tape():
+    """Latest close + prior-day return per ticker, for the header strip."""
+    try:
+        conn = snowflake.connector.connect(
+            account=get_secret("SNOWFLAKE_ACCOUNT"),
+            user=get_secret("SNOWFLAKE_USER"),
+            password=get_secret("SNOWFLAKE_PASSWORD"),
+            warehouse=get_secret("SNOWFLAKE_WAREHOUSE"),
+            database="MARKET_DB",
+            schema="MARTS",
+            role="READONLY_ANALYST",
+        )
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT ticker, close_price, daily_return
+            FROM FACT_STOCK_METRICS
+            QUALIFY ROW_NUMBER() OVER (PARTITION BY ticker ORDER BY trade_date DESC) = 1
+        """)
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+        return {r[0]: (r[1], r[2]) for r in rows}
+    except Exception:
+        return {}
+
+
 # ---------------------------------------------------------------------------
-# Question routing
+# Question routing (unchanged logic from before)
 # ---------------------------------------------------------------------------
 GREETINGS = {"hi", "hello", "hey", "hi there", "hello there", "good morning",
              "good afternoon", "good evening", "howdy", "yo", "sup", "hiya"}
@@ -111,10 +139,10 @@ Available tables and columns:
 {schema_context}
 
 Rules:
-- Generate EXACTLY ONE SELECT statement. Never return multiple statements, and never separate statements with semicolons or newlines containing another SELECT.
+- Generate EXACTLY ONE SELECT statement. Never return multiple statements.
 - Never generate INSERT, UPDATE, DELETE, DROP, ALTER, or any other statement.
 - Use fully qualified table names (MARKET_DB.MARTS.<table>).
-- Never use SELECT * — always select specific, relevant columns for the question.
+- Never use SELECT * — always select specific, relevant columns.
 - daily_return, portfolio_daily_return, excess_return_vs_benchmark, var_95_1day, and var_99_1day are stored as decimal fractions (0.01 = 1%), not percentages.
 - Return ONLY the SQL query, no explanation, no markdown formatting, no backticks.
 - If the question cannot be answered with the available tables, return exactly: NO_QUERY_POSSIBLE
@@ -131,8 +159,6 @@ Rules:
     sql = response.choices[0].message.content.strip()
     sql = sql.replace("```sql", "").replace("```", "").strip()
 
-    # Hard guard: even with the prompt rule above, models sometimes still
-    # return multiple statements. Only ever keep the first one.
     first_statement = sql.split(";")[0].strip()
     lines = first_statement.splitlines()
     clean_lines = []
@@ -237,7 +263,6 @@ def answer_general_question(question):
 
 
 def route_question(question):
-    """Returns (answer_text, debug_sql_or_none)."""
     if is_greeting(question):
         return ("Hi! Ask me about stock prices, returns, volatility, or "
                 "portfolio performance — or type 'what can you do' to see examples.", None)
@@ -262,7 +287,6 @@ def route_question(question):
     try:
         columns, rows = run_query(sql)
     except Exception:
-        # Never surface raw SQL/database errors to the user.
         return ("I'm afraid I couldn't find an answer to that in the data — "
                 "could you try asking it a different way?", sql)
 
@@ -275,23 +299,136 @@ def route_question(question):
 
 
 # ---------------------------------------------------------------------------
-# UI — chat style
+# STYLE — trading-terminal aesthetic
 # ---------------------------------------------------------------------------
+st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap');
+
+:root {
+    --bg: #F5F6F8;
+    --panel: #EEF2F7;
+    --panel-border: #D9DFE8;
+    --navy: #16223F;
+    --navy-light: #2C3E63;
+    --green: #16A34A;
+    --red: #DC2626;
+    --text: #14181F;
+    --text-muted: #6B7280;
+}
+
+.stApp { background-color: var(--bg); }
+* { font-family: 'Inter', sans-serif; }
+
+.terminal-header {
+    font-family: 'IBM Plex Mono', monospace;
+    font-weight: 700;
+    font-size: 1.6rem;
+    letter-spacing: 0.04em;
+    color: var(--navy);
+    text-transform: uppercase;
+    border-bottom: 2px solid var(--navy);
+    padding-bottom: 10px;
+    margin-bottom: 4px;
+}
+.terminal-header span { color: var(--green); }
+.terminal-sub {
+    font-family: 'IBM Plex Mono', monospace;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    letter-spacing: 0.03em;
+    margin-bottom: 18px;
+}
+
+.ticker-tape-wrap {
+    overflow: hidden;
+    white-space: nowrap;
+    background: var(--navy);
+    border: 1px solid var(--panel-border);
+    border-radius: 6px;
+    padding: 10px 0;
+    margin-bottom: 22px;
+}
+.ticker-tape {
+    display: inline-block;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.85rem;
+    animation: scroll-left 28s linear infinite;
+    padding-left: 100%;
+}
+.ticker-tape span.sym { color: #FFFFFF; font-weight: 600; margin-left: 28px; }
+.ticker-tape span.up { color: #4ADE80; }
+.ticker-tape span.down { color: #F87171; }
+@keyframes scroll-left {
+    0% { transform: translateX(0); }
+    100% { transform: translateX(-100%); }
+}
+
+[data-testid="stSidebar"] {
+    background-color: var(--panel);
+    border-right: 1px solid var(--panel-border);
+}
+[data-testid="stSidebar"] h2 {
+    font-family: 'IBM Plex Mono', monospace;
+    color: var(--navy);
+    font-size: 0.95rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+[data-testid="stChatMessage"] {
+    background-color: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: 8px;
+    box-shadow: 0 1px 2px rgba(20, 24, 31, 0.04);
+}
+
+div[data-testid="stChatInput"] {
+    background-color: var(--panel) !important;
+    border: 1px solid var(--panel-border) !important;
+    border-radius: 10px !important;
+}
+div[data-testid="stChatInput"] textarea {
+    font-family: 'IBM Plex Mono', monospace;
+    background-color: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    color: var(--text) !important;
+}
+
+code, pre { font-family: 'IBM Plex Mono', monospace !important; }
+</style>
+""", unsafe_allow_html=True)
+
+# ---------------------------------------------------------------------------
+# Ticker tape (signature element)
+# ---------------------------------------------------------------------------
+with st.spinner("Loading market data..."):
+    prices = fetch_ticker_tape()
+tape_html = ""
+for t in TICKERS:
+    if t in prices:
+        close, ret = prices[t]
+        direction = "up" if (ret or 0) >= 0 else "down"
+        arrow = "▲" if direction == "up" else "▼"
+        pct = f"{ret * 100:+.2f}%" if ret is not None else "—"
+        tape_html += f'<span class="sym">{t}</span> <span class="{direction}">${close:.2f} {arrow} {pct}</span>'
+    else:
+        tape_html += f'<span class="sym">{t}</span> <span style="color:var(--text-muted)">—</span>'
+
 st.markdown(
-    """
-    <style>
-    .stChatMessage { border-radius: 12px; }
-    div[data-testid="stChatInput"] { border-radius: 12px; }
-    </style>
-    """,
+    f'<div class="ticker-tape-wrap"><div class="ticker-tape">{tape_html}{tape_html}</div></div>',
     unsafe_allow_html=True,
 )
 
-st.title("📈 Portfolio Q&A Assistant")
-st.caption("Ask about stock prices, returns, volatility, or portfolio performance — plain English, no SQL needed.")
+# ---------------------------------------------------------------------------
+# Header
+# ---------------------------------------------------------------------------
+st.markdown('<div class="terminal-header">PORTFOLIO <span>//</span> TERMINAL</div>', unsafe_allow_html=True)
+st.markdown('<div class="terminal-sub">NATURAL LANGUAGE QUERY ENGINE · AAPL · MSFT · GOOGL · JPM · GS · SPY</div>', unsafe_allow_html=True)
 
 with st.sidebar:
-    st.header("What can I ask?")
+    st.header("Watchlist Queries")
     st.markdown("""
 - What was AAPL's closing price recently?
 - What was the high/low for MSFT last week?
@@ -316,7 +453,7 @@ for msg in st.session_state.messages:
             with st.expander("Generated SQL"):
                 st.code(msg["sql"], language="sql")
 
-question = st.chat_input("Ask a question...")
+question = st.chat_input("Ask about your portfolio...")
 
 if question:
     st.session_state.messages.append({"role": "user", "content": question})
@@ -324,7 +461,7 @@ if question:
         st.markdown(question)
 
     with st.chat_message("assistant"):
-        with st.spinner("Thinking..."):
+        with st.spinner("Querying..."):
             answer, sql = route_question(question)
         st.markdown(answer)
         if sql:
