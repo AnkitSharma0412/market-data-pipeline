@@ -95,4 +95,7 @@ before merge, not after.
 [Add a screenshot of a query against fact_stock_metrics here]
 <img width="1213" height="433" alt="image" src="https://github.com/user-attachments/assets/fcf9909e-128a-41fc-ba89-9d66d0129607" />
 
+<img width="1204" height="580" alt="image" src="https://github.com/user-attachments/assets/bf18d8d9-f9b0-4896-9fc6-102e42c1348e" />
+
+
 
