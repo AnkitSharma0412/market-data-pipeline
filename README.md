@@ -90,6 +90,8 @@ before merge, not after.
   Snowflake role, as defense in depth.
 
 [Add your dbt docs lineage graph screenshot here]
+<img width="1302" height="539" alt="image" src="https://github.com/user-attachments/assets/1ba44f73-7dad-4882-b489-2a09241b7071" />
+
 [Add a screenshot of a query against fact_stock_metrics here]
 ![alt text](image.png)
 <img width="1213" height="433" alt="image" src="https://github.com/user-attachments/assets/fcf9909e-128a-41fc-ba89-9d66d0129607" />
